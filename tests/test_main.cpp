@@ -1,4 +1,7 @@
+#include <bits/stdc++.h>
 #include "test_framework.hpp"
+
+using namespace std;
 
 int main() {
     int total = 0;
@@ -8,6 +11,6 @@ int main() {
         tc.fn();
     }
 
-    std::cout << total << " test case(s) run, " << testfw::failureCount << " assertion failure(s).\n";
+    cout << total << " test case(s) run, " << testfw::failureCount << " assertion failure(s).\n";
     return testfw::failureCount == 0 ? 0 : 1;
 }

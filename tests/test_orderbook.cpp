@@ -1,7 +1,9 @@
 #include "lob/OrderBook.hpp"
 #include "test_framework.hpp"
 
-#include <stdexcept>
+#include <bits/stdc++.h>
+
+using namespace std;
 
 using namespace lob;
 
@@ -32,19 +34,19 @@ TEST_CASE(crossing_order_generates_trade_at_resting_price) {
     auto trades = book.addLimitOrder(2, Side::Buy, 101, 4);
 
     REQUIRE(trades.size() == 1);
-    CHECK(trades[0].price == 100); // trade executes at resting (maker) price
+    CHECK(trades[0].price == 100); // trades at the resting price
     CHECK(trades[0].quantity == 4);
     CHECK(trades[0].makerOrderId == 1);
     CHECK(trades[0].takerOrderId == 2);
 
-    // Resting order partially filled, remainder still on book.
+    // Resting order partly filled.
     REQUIRE(book.bestAsk().has_value());
     CHECK(*book.bestAsk() == 100);
     auto depth = book.depth(Side::Sell, 1);
     REQUIRE(depth.size() == 1);
     CHECK(depth[0].totalQuantity == 6);
 
-    // Taker fully filled, nothing rests for it.
+    // Taker fully filled.
     CHECK(!book.hasOrder(2));
 }
 
@@ -57,15 +59,15 @@ TEST_CASE(order_fully_filled_across_multiple_resting_orders) {
     auto trades = book.addLimitOrder(4, Side::Buy, 101, 5);
 
     REQUIRE(trades.size() == 2);
-    // FIFO: order 1 (arrived first at 100) fills before order 2.
+    // FIFO: order 1 fills first.
     CHECK(trades[0].makerOrderId == 1);
     CHECK(trades[0].quantity == 3);
     CHECK(trades[1].makerOrderId == 2);
     CHECK(trades[1].quantity == 2);
 
     CHECK(!book.hasOrder(1));
-    CHECK(book.hasOrder(2)); // order 2 still has 2 remaining
-    CHECK(book.hasOrder(3)); // untouched, price 101 never reached
+    CHECK(book.hasOrder(2)); // 2 left
+    CHECK(book.hasOrder(3)); // untouched
 }
 
 TEST_CASE(time_priority_fifo_at_same_price_level) {
@@ -116,12 +118,12 @@ TEST_CASE(modify_order_changes_price_and_loses_priority) {
     book.addLimitOrder(1, Side::Buy, 100, 5);
     book.addLimitOrder(2, Side::Buy, 100, 5);
 
-    // Order 1 moves to the back of the 100 level by modifying (even to the same price).
+    // Modify sends order 1 to the back of the queue.
     book.modifyOrder(1, 100, 8);
 
     auto trades = book.addLimitOrder(3, Side::Sell, 100, 5);
     REQUIRE(trades.size() == 1);
-    CHECK(trades[0].makerOrderId == 2); // order 2 now has priority
+    CHECK(trades[0].makerOrderId == 2); // order 2 goes first
 }
 
 TEST_CASE(modify_unknown_id_is_noop) {
@@ -138,7 +140,7 @@ TEST_CASE(ioc_order_discards_unfilled_remainder) {
 
     REQUIRE(trades.size() == 1);
     CHECK(trades[0].quantity == 3);
-    CHECK(!book.hasOrder(2)); // remaining 7 was discarded, not rested
+    CHECK(!book.hasOrder(2)); // rest dropped
     CHECK(!book.bestAsk().has_value());
 }
 
@@ -150,7 +152,7 @@ TEST_CASE(fok_order_kills_when_not_fully_fillable) {
 
     CHECK(trades.empty());
     CHECK(!book.hasOrder(2));
-    // The resting order must be untouched since the FOK never executed.
+    // Resting order untouched.
     REQUIRE(book.bestAsk().has_value());
     CHECK(*book.bestAsk() == 100);
     auto depth = book.depth(Side::Sell, 1);
@@ -206,7 +208,7 @@ TEST_CASE(duplicate_order_id_throws) {
     bool threw = false;
     try {
         book.addLimitOrder(1, Side::Sell, 105, 5);
-    } catch (const std::invalid_argument&) {
+    } catch (const invalid_argument&) {
         threw = true;
     }
     CHECK(threw);
@@ -220,7 +222,7 @@ TEST_CASE(depth_respects_max_levels_and_price_ordering) {
 
     auto depth = book.depth(Side::Buy, 2);
     REQUIRE(depth.size() == 2);
-    CHECK(depth[0].price == 101); // best bid first (descending)
+    CHECK(depth[0].price == 101); // best bid first
     CHECK(depth[1].price == 100);
 }
 
@@ -231,7 +233,7 @@ TEST_CASE(modify_with_zero_quantity_throws_and_keeps_original_order) {
     bool threw = false;
     try {
         book.modifyOrder(1, 101, 0);
-    } catch (const std::invalid_argument&) {
+    } catch (const invalid_argument&) {
         threw = true;
     }
     CHECK(threw);

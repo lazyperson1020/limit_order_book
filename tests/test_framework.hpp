@@ -1,37 +1,34 @@
 #pragma once
 
-// Minimal self-registering test framework. No external dependencies so the
-// project builds offline with nothing beyond CMake + a C++17 compiler.
+// Tiny test framework, no external dependencies.
 
-#include <functional>
-#include <iostream>
-#include <string>
-#include <utility>
-#include <vector>
+#include <bits/stdc++.h>
+
+using namespace std;
 
 namespace testfw {
 
 struct TestCase {
-    std::string name;
-    std::function<void()> fn;
+    string name;
+    function<void()> fn;
 };
 
-inline std::vector<TestCase>& registry() {
-    static std::vector<TestCase> cases;
+inline vector<TestCase>& registry() {
+    static vector<TestCase> cases;
     return cases;
 }
 
 struct Registrar {
-    Registrar(std::string name, std::function<void()> fn) {
-        registry().push_back({std::move(name), std::move(fn)});
+    Registrar(string name, function<void()> fn) {
+        registry().push_back({name, fn});
     }
 };
 
 inline int failureCount = 0;
-inline std::string currentTest;
+inline string currentTest;
 
 inline void reportFailure(const char* expr, const char* file, int line) {
-    std::cerr << "  [FAIL] " << currentTest << ": " << expr << " (" << file << ":" << line << ")\n";
+    cerr << "  [FAIL] " << currentTest << ": " << expr << " (" << file << ":" << line << ")\n";
     ++failureCount;
 }
 

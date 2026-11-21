@@ -1,23 +1,24 @@
 #include "lob/OrderBook.hpp"
 
-#include <algorithm>
-#include <stdexcept>
+#include <bits/stdc++.h>
+
+using namespace std;
 
 namespace lob {
 
-std::vector<Trade> OrderBook::addLimitOrder(OrderId id, Side side, Price price, Quantity quantity,
+vector<Trade> OrderBook::addLimitOrder(OrderId id, Side side, Price price, Quantity quantity,
                                              TimeInForce tif) {
     if (locations_.count(id)) {
-        throw std::invalid_argument("addLimitOrder: duplicate order id");
+        throw invalid_argument("addLimitOrder: duplicate order id");
     }
     if (quantity == 0) {
-        throw std::invalid_argument("addLimitOrder: quantity must be positive");
+        throw invalid_argument("addLimitOrder: quantity must be positive");
     }
 
-    std::vector<Trade> trades;
+    vector<Trade> trades;
 
     if (tif == TimeInForce::FOK && !canFullyFill(side, price, quantity)) {
-        return trades; // killed: nothing executes, nothing rests
+        return trades; // killed
     }
 
     Quantity remaining = (side == Side::Buy) ? matchAgainstAsks(id, price, quantity, trades)
@@ -26,26 +27,24 @@ std::vector<Trade> OrderBook::addLimitOrder(OrderId id, Side side, Price price, 
     if (remaining > 0 && tif == TimeInForce::GTC) {
         insertResting(side, id, price, remaining);
     }
-    // IOC/FOK: any remainder is discarded rather than rested.
 
     return trades;
 }
 
-std::vector<Trade> OrderBook::addMarketOrder(OrderId id, Side side, Quantity quantity) {
+vector<Trade> OrderBook::addMarketOrder(OrderId id, Side side, Quantity quantity) {
     if (locations_.count(id)) {
-        throw std::invalid_argument("addMarketOrder: duplicate order id");
+        throw invalid_argument("addMarketOrder: duplicate order id");
     }
     if (quantity == 0) {
-        throw std::invalid_argument("addMarketOrder: quantity must be positive");
+        throw invalid_argument("addMarketOrder: quantity must be positive");
     }
 
-    std::vector<Trade> trades;
+    vector<Trade> trades;
     if (side == Side::Buy) {
-        matchAgainstAsks(id, std::nullopt, quantity, trades);
+        matchAgainstAsks(id, nullopt, quantity, trades);
     } else {
-        matchAgainstBids(id, std::nullopt, quantity, trades);
+        matchAgainstBids(id, nullopt, quantity, trades);
     }
-    // Market orders never rest; any unfilled remainder is simply discarded.
     return trades;
 }
 
@@ -74,32 +73,32 @@ bool OrderBook::cancelOrder(OrderId id) {
     return true;
 }
 
-std::vector<Trade> OrderBook::modifyOrder(OrderId id, Price newPrice, Quantity newQuantity) {
+vector<Trade> OrderBook::modifyOrder(OrderId id, Price newPrice, Quantity newQuantity) {
     auto locIt = locations_.find(id);
     if (locIt == locations_.end()) {
         return {};
     }
-    // Validate before cancelling so a bad request can't silently drop the original order.
+    // Check first so a bad modify keeps the order.
     if (newQuantity == 0) {
-        throw std::invalid_argument("modifyOrder: quantity must be positive");
+        throw invalid_argument("modifyOrder: quantity must be positive");
     }
     Side side = locIt->second.side;
     cancelOrder(id);
     return addLimitOrder(id, side, newPrice, newQuantity, TimeInForce::GTC);
 }
 
-std::optional<Price> OrderBook::bestBid() const {
-    if (bids_.empty()) return std::nullopt;
+optional<Price> OrderBook::bestBid() const {
+    if (bids_.empty()) return nullopt;
     return bids_.begin()->first;
 }
 
-std::optional<Price> OrderBook::bestAsk() const {
-    if (asks_.empty()) return std::nullopt;
+optional<Price> OrderBook::bestAsk() const {
+    if (asks_.empty()) return nullopt;
     return asks_.begin()->first;
 }
 
-std::vector<PriceLevelInfo> OrderBook::depth(Side side, std::size_t maxLevels) const {
-    std::vector<PriceLevelInfo> result;
+vector<PriceLevelInfo> OrderBook::depth(Side side, size_t maxLevels) const {
+    vector<PriceLevelInfo> result;
 
     auto collect = [&](const auto& book) {
         for (auto it = book.begin(); it != book.end() && result.size() < maxLevels; ++it) {
@@ -137,8 +136,8 @@ bool OrderBook::canFullyFill(Side takerSide, Price limitPrice, Quantity quantity
     return available >= quantity;
 }
 
-Quantity OrderBook::matchAgainstAsks(OrderId takerId, std::optional<Price> limitPrice,
-                                      Quantity quantity, std::vector<Trade>& trades) {
+Quantity OrderBook::matchAgainstAsks(OrderId takerId, optional<Price> limitPrice,
+                                      Quantity quantity, vector<Trade>& trades) {
     Quantity remaining = quantity;
 
     while (remaining > 0 && !asks_.empty()) {
@@ -149,7 +148,7 @@ Quantity OrderBook::matchAgainstAsks(OrderId takerId, std::optional<Price> limit
         Level& level = levelIt->second;
         while (remaining > 0 && !level.empty()) {
             Order& resting = level.front();
-            Quantity traded = std::min(remaining, resting.quantity);
+            Quantity traded = min(remaining, resting.quantity);
 
             trades.push_back(Trade{takerId, resting.id, Side::Buy, levelPrice, traded, nextTimestamp()});
 
@@ -170,8 +169,8 @@ Quantity OrderBook::matchAgainstAsks(OrderId takerId, std::optional<Price> limit
     return remaining;
 }
 
-Quantity OrderBook::matchAgainstBids(OrderId takerId, std::optional<Price> limitPrice,
-                                      Quantity quantity, std::vector<Trade>& trades) {
+Quantity OrderBook::matchAgainstBids(OrderId takerId, optional<Price> limitPrice,
+                                      Quantity quantity, vector<Trade>& trades) {
     Quantity remaining = quantity;
 
     while (remaining > 0 && !bids_.empty()) {
@@ -182,7 +181,7 @@ Quantity OrderBook::matchAgainstBids(OrderId takerId, std::optional<Price> limit
         Level& level = levelIt->second;
         while (remaining > 0 && !level.empty()) {
             Order& resting = level.front();
-            Quantity traded = std::min(remaining, resting.quantity);
+            Quantity traded = min(remaining, resting.quantity);
 
             trades.push_back(Trade{takerId, resting.id, Side::Sell, levelPrice, traded, nextTimestamp()});
 
@@ -209,11 +208,11 @@ void OrderBook::insertResting(Side side, OrderId id, Price price, Quantity quant
     if (side == Side::Buy) {
         Level& level = bids_[price];
         level.push_back(Order{id, side, price, quantity, ts});
-        locations_[id] = OrderLocation{side, price, std::prev(level.end())};
+        locations_[id] = OrderLocation{side, price, prev(level.end())};
     } else {
         Level& level = asks_[price];
         level.push_back(Order{id, side, price, quantity, ts});
-        locations_[id] = OrderLocation{side, price, std::prev(level.end())};
+        locations_[id] = OrderLocation{side, price, prev(level.end())};
     }
 }
 
